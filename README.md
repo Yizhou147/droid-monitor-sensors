@@ -1,3 +1,5 @@
+中文 | [English](README_english.md)
+
 # droid-gpu-sensor — 让 KDE 系统监视器显示 Adreno GPU
 
 小米 Pad 8 Pro（SM8750 / kgsl）上，KDE **系统监视器**的 GPU 圈一直是空的，页面顶部还提示

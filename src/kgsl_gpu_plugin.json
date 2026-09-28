@@ -1,0 +1,6 @@
+{
+    "Id": "org.kde.ksystemstats.kgsl",
+    "Name": "kgsl (Qualcomm Adreno) GPU sensors",
+    "EnabledByDefault": true,
+    "providerName": "gpu"
+}

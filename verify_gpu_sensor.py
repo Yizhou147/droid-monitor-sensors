@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 XiaomiPad8Pro-drm-display 项目
+# SPDX-License-Identifier: GPL-3.0-only
 """verify_gpu_sensor.py — 端到端验证 kgsl GPU 传感器是否在出值。
 
 为什么需要它：传感器"注册出来了"不等于"有值"。09-28 实测：插件不实现

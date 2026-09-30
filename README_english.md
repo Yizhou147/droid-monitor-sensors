@@ -1,10 +1,14 @@
 [中文](README.md) | English
 
-# droid-gpu-sensor — Show the Adreno GPU in KDE System Monitor
+# droid-monitor-sensors — Show the Adreno GPU / Disk / Temperature in KDE System Monitor
 
 On the Xiaomi Pad 8 Pro (SM8750 / kgsl), the GPU circle in **KDE System Monitor** is always
 empty, and the page header warns "Some sensors are missing from this page". **The symptom is
 identical in both anland and DRM takeover modes** (same rootfs, same ksystemstats).
+
+> Besides the GPU, a second plugin in this repo also fills in **disk** and **CPU/battery
+> temperature** (network is left alone — the upstream one already works here). See
+> "Extension: disk + thermal" below.
 
 ## Root cause
 
@@ -52,25 +56,73 @@ the page already binds to — the user does not have to edit the page.
    separate `busctl` calls (one subscribe, one sensorData) cannot prove anything; it must be one
    connection, hence `verify_gpu_sensor.py`.
 
+## Extension: disk + thermal (containerio)
+
+Beyond the GPU, this repo ships a second plugin, `ksystemstats_plugin_containerio.so`, that also
+fills in **disk** and **CPU/battery temperature** (network is deliberately excluded — see below).
+
+**Disk**: the upstream `ksystemstats_plugin_disk.so` depends on Solid (fstab/devices backend),
+which is absent in this container ⇒ it only registers **empty** `disk/all/*` shells (visible in
+`allSensors`, but a subscribe returns MISSING and the bars stay blank). The data is all there, just
+from a different source: capacity via `statvfs()`, I/O via `/proc/diskstats` (fields `[5]`/`[9]`
+sectors × 512).
+
+**Temperature**: `/sys/class/hwmon` is empty here ⇒ the upstream `lmsensors` plugin (which enumerates
+hwmon via libsensors) registers no chip at all, so `thermal` simply does not exist. But the data is
+in `/sys/class/thermal/thermal_zone*` (values confirmed on-device):
+
+| thermal zone type | Meaning |
+| --- | --- |
+| `cpu_therm` | Package CPU temperature (preferred; falls back to the max of all `cpu-*`/`cpuss-*` zones) |
+| `battery` | Battery temperature |
+
+Millidegrees Celsius (`42100` = 42.1°C), exposed as `thermal/cpu/temperature` and
+`thermal/battery/temperature`.
+
+**Network: intentionally not ported.** Measured on 09-30, the upstream `ksystemstats_plugin_network.so`
+**works** on this device (`network/wlan0/download`, `ipv4address` all have real values, plus
+dns/gateway/signal). Porting our own would only **replace something that works with something weaker**,
+so the io plugin **creates no network container and the install script does not disable upstream
+network**. If upstream network ever breaks, add it following the disk path.
+
+> The disk id (`disk/all/used`) already matches the disk face binding in the existing overview.page,
+> so **no page edit is needed**; there is no temperature face on the page, so the new temperature
+> sensors show up under "All sensors / History" — add a temperature face in the UI to surface them.
+
 ## Build / install / uninstall
 
 ```
-./install.sh                 # build + install + restart ksystemstats
-./install.sh uninstall       # uninstall and restore the upstream gpu plugin
-python3 verify_gpu_sensor.py # verify values appear (optionally run vkmark concurrently to watch usage climb)
+./install.sh                  # build + install both plugins + disable the matching upstream + restart ksystemstats
+./install.sh uninstall        # remove our plugins and restore whatever upstream plugins were disabled
+python3 verify_gpu_sensor.py  # verify GPU values (optionally run vkmark concurrently to watch usage climb)
+python3 verify_io_sensor.py   # verify disk + temperature values
 ```
 
 Dependencies: `libksysguard-dev`, `qt6-base-dev`, `kf6-coreaddons-dev`, `kf6-i18n-dev`, `cmake`,
 and **`libsensors-dev`** (KSysGuard's transitive dependency needs the `libsensors.so` symlink;
 the error only surfaces at link time).
 
-The install script renames the upstream `ksystemstats_plugin_gpu.so` to `.disabled` **only when
-the kgsl nodes actually exist on this machine** (both plugins use `providerName` = `gpu` and
-would collide if registered together). On non-kgsl machines this plugin simply `return`s without
-registering anything, and the upstream plugin stays enabled.
+Disable policy in the install script (all are reversible **renames to `.disabled`**, restored verbatim
+by `uninstall`):
+
+- `gpu.so`: disabled only when the kgsl nodes actually exist here (our plugin's provider is also
+  `gpu`, so the two would collide).
+- `disk.so`: the io plugin always produces the real values in this container, so the same-named
+  upstream `disk` container is disabled.
+- `network.so` and `lmsensors.so`: **both left untouched** — upstream network works here, and
+  lmsensors registers nothing (empty hwmon) and does not occupy the `thermal` container.
 
 ## Scope
 
 This changes the container's rootfs, which is **shared by both anland and DRM takeover modes** —
 no per-mode handling needed. If System Monitor is already open after installing, reopen it once
 (ksystemstats was restarted; old windows hold a stale sensor list).
+
+## License and provenance
+
+- All code in this repo is released under **GPL-3.0-only**; full text in [`LICENSE`](LICENSE).
+  Each source file carries the matching SPDX identifier; the two plugin `*.json` files are the
+  exception — a comment there makes the metadata fail to parse, so the plugin is silently filtered
+  out by `findPlugins` (pitfall #1 above).
+- The disk/thermal plugin was informed by the **gpu-monitor-fix** project (the version here is a
+  rewrite). No public address for that project could be found.

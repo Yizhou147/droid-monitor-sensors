@@ -1,5 +1,6 @@
 /*
     SPDX-FileCopyrightText: 2026 XiaomiPad8Pro-drm-display 项目
+    SPDX-License-Identifier: GPL-3.0-only
 
     ksystemstats 的 kgsl(Adreno) GPU 传感器后端。
 

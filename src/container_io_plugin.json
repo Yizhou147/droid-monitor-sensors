@@ -1,0 +1,6 @@
+{
+    "Id": "org.kde.ksystemstats.containerio",
+    "Name": "container-safe disk / thermal sensors",
+    "EnabledByDefault": true,
+    "providerName": "containerio"
+}
